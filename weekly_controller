@@ -129,9 +129,16 @@ global with sharing class PJP_WeeklyPlanCntrl {
                 dl.typeCol = 'Normal';
                 dl.holReason = Integer.valueOf(weekPlan.Week__c);
                 if(mapOfOldRecords.containsKey(acc.Id)){
-                    dl.selectedDay = mapOfOldRecords.get(acc.Id).contains(dayN) ? true : false;
+                  Map<Integer,String> temp = new Map<Integer,String>();
+                  temp = mapOfOldRecords.get(acc.Id);
+
+                    dl.selectedDay = temp.containsKey(dayN) ? true : false;
+                    dl.evetnId = temp.containsKey(dayN) ? temp.get(dayN) : null;
+
                 }else{
                     dl.selectedDay = false;
+                    dl.evetnId = null;
+
                 }
 
 
@@ -178,6 +185,8 @@ global with sharing class PJP_WeeklyPlanCntrl {
                     mapOfOldRecords.put(ev.Customer__c,temp);
                 }
             List<Event> eventCal = new List<Event>();
+            List<Event> eventCalToDiscard = new List<Event>();
+
             Integer counterOfVisits = 0;
 
             for(DayList dList : returnList){
