@@ -1,0 +1,450 @@
+<apex:page showHeader="false" 
+           sidebar="false"
+           docType="html-5.0"
+           standardStylesheets="false"
+           applyBodyTag="false"
+           applyHtmlTag="false" standardController="Monthly_Journey_Plan__c" extensions="PJP_PlanningController_2">
+
+    <html lang="en" ng-app="PJP">
+        <head>
+            <title>PJP Planner</title>
+
+            <!-- This is theme for BootStrap current theme is Sandstone. you can choose from multiple themes by just copy pasting the css from BootswapAllThemeComp  -->
+            <link href="{!URLFOR($Resource.BootstrapTheams,'BoostWatchTheams/yeti/bootstrap.min.css')}" rel="stylesheet" />
+            <!-- This files is required for BootStrap CSS -->
+            <link href="{!URLFOR($Resource.BootstrapTheams,'BoostWatchTheams/asset/css/bootswatch.min.css')}" rel="stylesheet" />
+            <link href="{!URLFOR($Resource.LoadingAnimation)}" rel="stylesheet" />
+
+            <style type="text/css">
+                body{
+                padding-top: 0px !important;
+                }
+
+                .Holiday{
+                background-color : #848484;
+                }
+
+                .Normal{
+                background-color : #FFF;
+                }
+
+                .redClass {
+                color: #EC0C24;
+                font-weight: bold;
+                }
+
+                .greenClass {
+                color: #11BB2B;
+                font-weight: bold;
+                }
+
+                .tooltipNew {
+                border: 1px solid black;
+                width: 390px;
+                margin-left: 5px;
+                margin-top: -48px;
+                background-color: darkcyan;
+                border-radius: 4px;
+                height: 20px;
+                color: white;
+                position:absolute;
+                }
+
+            </style>
+        </head>
+        <body ng-controller="HomeController">
+            <nav class="navbar navbar-inverse">
+                <div class="container-fluid">
+                    <div class="navbar-header">
+
+                        <a class="navbar-brand" ng-href="/{{pjpId}}">Home </a>
+                    </div>
+                    <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
+                        <ul class="nav navbar-nav navbar-right">
+                            <li><a ng-click="submitThePlan('Save')" style="cursor: pointer;" id ="saveAsDraftButton">Save As Draft</a></li>
+                            <li><a ng-click="submitThePlan('Submit')" style="cursor: pointer;" id="submitForApprovalButton">Submit For Approval</a></li>
+                        </ul>
+                    </div>
+
+                </div>
+            </nav>
+
+            <div class="loading" ng-show="loadingH" >Loading&#8230;</div>
+
+            <div class="alert alert-dismissible alert-warning" ng-show="currentMonth.message == 'SUCCESS'">
+                <button type="button" class="close" data-dismiss="alert">&times;</button>
+                <h4>Warning!</h4>
+                <p> Plan for selected month is already exist, Please modify the plan or change the month. To navigate to {{monthName.Name}} month plan please click here <a ng-href="/{{currentMonth.recordId}}" class="alert-link">{{monthName.Name}} Plan</a> </p>
+            </div>
+
+            <div class="panel panel-primary">
+                <div class="panel-heading">
+                    <h3 class="panel-title" style="padding-top:7.5px;float:left;">Select Dates</h3>
+                    <div class="input-group">
+                        <select  class="form-control" ng-model="cityName" ng-options="item as item for item in cityList" style="width:150px;margin-left: 100px" ng-change="cityChangeFunction()">
+                        </select>
+                        <select  class="form-control" ng-model="categoryName" ng-options="item as item for item in categoryList | orderBy:'toString()'" style="width:150px;margin-left: 10px" ng-change="categoryChangeFunction()">
+                        </select>
+
+                        <select  class="form-control" ng-model="monthName" ng-disabled="disableTheSelectOption" ng-options="item as item.Name for item in monthList" style="width:65px;float:right;" >
+                        </select>
+                        <div class="input-group-btn">
+                            <button class="btn btn-primary" ng-disabled="disableTheSelectOption" ng-click="changeTheMonth()"><i class="glyphicon glyphicon-search"></i></button>
+                        </div>
+                    </div>
+                </div>
+                <div class="panel-body">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>
+                                    Customer Name
+                                </th>
+                                <th >
+                                    <label ng-mouseover="tooltip=true" ng-mouseleave="tooltip=false">Visits</label>
+                                    <div class="tooltipNew" ng-show="tooltip" >Actual visits made during the fiscal year out of target visits</div>
+                                </th>
+                                <th ng-repeat="item in coloumState" ng-class="item.typeCol">
+                                    {{item.dayNumber}}
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody style="overflow:scroll;" >
+                            <tr ng-repeat="acc in setting_Records.dataWrapper" ng-show="showTheRow(acc.account)">
+                                <!--Author: PwC India - Augustya Karavat @12th Sep 2017!-->
+                                <!--Unit Name is added for displaying the Account - Billing City - Unit Name on the layout-->
+
+                                <td class="filterable-cell">{{acc.account.Name}} - {{acc.account.BillingCity}} - {{acc.account.Unit_Name__c}}</td>
+                                <td class="filterable-cell" ng-class="acc.pastCompVisits.indexOf('0') == 0 ? 'redClass' : 'greenClass' ">{{acc.pastCompVisits}}</td>
+                                <td ng-repeat="set in acc.dayMon" ng-class="set.typeCol" class="filterable-cell">
+                                    <input type="checkbox" ng-model="set.selectedDay" ng-disabled="set.typeCol == 'Holiday' || set.readOnlySt" ng-change="addDataRemove(set)"/>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- JS Files -->
+            <!-- AngularJS main JS file Required -->
+            <apex:includeScript value="{!URLFOR($Resource.AngularBootPack,'AngularBootStapNew/js/angular.min.js')}"/>
+            <!-- AngularJS with Bootstrap files ( optional )-->
+            <apex:includeScript value="{!URLFOR($Resource.AngularBootPack,'AngularBootStapNew/js/angular-strap.min.js')}"/>
+            <apex:includeScript value="{!URLFOR($Resource.AngularBootPack,'AngularBootStapNew/js/angular-strap.tpl.min.js')}"/>
+
+            <script type="text/javascript">
+            var myapp = angular.module('PJP', ['mgcrea.ngStrap']);
+
+            myapp.factory('FETCH_RECORDS', ['$q','$log', function($q,$log){
+                var handleReq = function(remoteCall,mn,yr,on,wk,pjp) {
+                    var defer = $q.defer();
+                    remoteCall(mn,yr,on,wk,pjp,
+                               function(result, event) {
+                                   if(event.status) {
+                                       defer.resolve(result);
+                                   }
+                                   else {
+                                       $log.error(event.message);
+                                       defer.reject(event.message);
+                                   }
+                               },
+                               {escape:false, buffer: false}
+                              );
+                    return defer.promise;
+                }
+
+                return {
+                    getAllRecords: function(methodName,mn,yr,on,wk,pjp) {
+                        return handleReq(methodName,mn,yr,on,wk,pjp);
+                    }
+                }
+            }]);
+
+            myapp.factory('CHECK_CORDS', ['$q','$log', function($q,$log){
+                var handleReq = function(remoteCall,mn) {
+                    var defer = $q.defer();
+                    remoteCall(mn,
+                               function(result, event) {
+                                   if(event.status) {
+                                       defer.resolve(result);
+                                   }
+                                   else {
+                                       $log.error(event.message);
+                                       defer.reject(event.message);
+                                   }
+                               },
+                               {escape:false, buffer: false}
+                              );
+                    return defer.promise;
+                }
+
+                return {
+                    checkPreviousRecords: function(methodName,mn) {
+                        return handleReq(methodName,mn);
+                    }
+                }
+            }]);
+
+            myapp.factory('SAVE_RECORDS', ['$q','$log', function($q,$log){
+                var handleReq = function(remoteCall,plan,mn,yr,on,wk,pjp,st) {
+                    var defer = $q.defer();
+                    remoteCall(plan,mn,yr,on,wk,pjp,st,
+                               function(result, event) {
+                                   if(event.status) {
+                                       defer.resolve(result);
+                                   }
+                                   else {
+                                       $log.error(event.message);
+                                       defer.reject(event.message);
+                                   }
+                               },
+                               {escape:false, buffer: false}
+                              );
+                    return defer.promise;
+                }
+
+                return {
+                    saveThePlan: function(methodName,plan,mn,yr,on,wk,pjp,st) {
+                        return handleReq(methodName,plan,mn,yr,on,wk,pjp,st);
+                    }
+                }
+            }]);
+            myapp.controller('HomeController', ['$scope','$log','FETCH_RECORDS','SAVE_RECORDS','CHECK_CORDS',function($scope,$log,FETCH_RECORDS,SAVE_RECORDS,CHECK_CORDS){
+
+                $scope.loadingH = true;
+                $scope.clickedOnce = false;
+                $scope.initialWatch = true;
+
+
+                // Get All Setting records
+                $scope.monthParameter = '{!$CurrentPage.parameters.month}';
+                $scope.pjpId = '{!$CurrentPage.parameters.id}';
+
+                $scope.monthList = [{Name: "January",number:1},{Name: "February",number:2},{Name: "March",number:3},{Name: "April",number:4},{Name: "May",number:5},{Name: "June",number:6},{Name: "July",number:7},{Name: "August",number:8},{Name: "September",number:9},{Name: "October",number:10},{Name: "November",number:11},{Name: "December",number:12}];
+
+                $scope.disableTheSelectOption = false;
+                if($scope.monthParameter != undefined && $scope.monthParameter != ''){
+                    $scope.disableTheSelectOption = true;
+                    angular.forEach($scope.monthList, function(record, key) {
+                        if(record.Name == $scope.monthParameter){
+                            $scope.monthName = record;
+                        }
+
+                    });
+                }else{
+                    var d = new Date();
+                    $scope.monthName = $scope.monthList[d.getMonth()];
+
+                }
+
+                var promise = FETCH_RECORDS.getAllRecords(PJP_PlanningController_2.getRelatedAccounts,$scope.monthName.number.toString(),'','','',$scope.pjpId);
+
+                $scope.setting_Records = {};
+                $scope.cityList = [];
+                $scope.categoryList = [];
+
+                $scope.currentMonth = { message : 'ERROR' , recordId : '' };
+
+                promise.then(function(response){
+                    $scope.setting_Records = response;
+                    $scope.coloumState = $scope.setting_Records.dataWrapper[0].dayMon;
+                    $scope.cityList = $scope.setting_Records.cityList;
+                    $scope.categoryList = $scope.setting_Records.categoryList;
+                    $scope.cityList.unshift('Select City');
+                    $scope.categoryList.unshift('Select Category');
+                    $scope.cityName = $scope.cityList[0];
+                    $scope.categoryName = $scope.categoryList[0];
+                    $scope.loadingH = false;
+
+                    $log.info('PJP DATA' + $scope.pjpId);
+                    if($scope.pjpId == undefined || $scope.pjpId == ''){
+                        CHECK_CORDS.checkPreviousRecords(PJP_PlanningController_2.getCurrentPlan,$scope.monthName.Name).then(function(resp){
+                            //alert(JSON.stringify(resp));
+                            $scope.currentMonth.message = resp.message;
+                            $scope.currentMonth.recordId = resp.recordId;
+
+                            if($scope.currentMonth.message == 'SUCCESS'){
+                                //Disable Save as Draft and Submit For Approval buttons
+                                document.getElementById('saveAsDraftButton').style.visibility = 'hidden';
+                                document.getElementById('submitForApprovalButton').style.visibility = 'hidden';
+
+                            }
+                            else if($scope.currentMonth.message == 'ERROR'){
+                                //Disable Save as Draft and Submit For Approval buttons
+                                document.getElementById('saveAsDraftButton').style.visibility = 'visible';
+                                document.getElementById('submitForApprovalButton').style.visibility = 'visible';
+
+                            }
+
+                        },function(err){
+                            $log.error('ERROR' + JSON.stringify(err));
+                        });
+                    }
+
+                },function(error){
+                    $log.error('ERROR' + JSON.stringify(error));
+                    $scope.loadingH = false;
+
+                });
+
+                $scope.changeTheMonth = function(){
+                    $scope.currentMonth = { message : 'ERROR' , recordId : '' };
+
+                    $scope.loadingH = true;
+                    var promise = FETCH_RECORDS.getAllRecords(PJP_PlanningController_2.getRelatedAccounts,$scope.monthName.number.toString(),'','','',$scope.pjpId);
+
+                    $scope.setting_Records = [];
+                    $scope.cityList = [];
+                    $scope.categoryList = [];
+
+                    promise.then(function(response){
+
+                        $scope.setting_Records = response;
+                        $scope.coloumState = $scope.setting_Records.dataWrapper[0].dayMon;
+                        $scope.cityList = $scope.setting_Records.cityList;
+
+                        $scope.categoryList = $scope.setting_Records.categoryList;
+                        $scope.cityList.unshift('Select City');
+                        $scope.categoryList.unshift('Select Category');
+                        $scope.cityName = $scope.cityList[0];
+                        $scope.categoryName = $scope.categoryList[0];
+                        $scope.loadingH = false;
+
+
+
+                        CHECK_CORDS.checkPreviousRecords(PJP_PlanningController_2.getCurrentPlan,$scope.monthName.Name).then(function(resp){
+                            //alert(JSON.stringify(resp));
+                            $scope.currentMonth.message = resp.message;
+                            $scope.currentMonth.recordId = resp.recordId;
+
+                            if($scope.currentMonth.message == 'SUCCESS'){
+                                //Disable Save as Draft and Submit For Approval buttons
+                                document.getElementById('saveAsDraftButton').style.visibility = 'hidden';
+                                document.getElementById('submitForApprovalButton').style.visibility = 'hidden';
+
+                            }
+                            else if($scope.currentMonth.message == 'ERROR'){
+                                //Disable Save as Draft and Submit For Approval buttons
+                                document.getElementById('saveAsDraftButton').style.visibility = 'visible';
+                                document.getElementById('submitForApprovalButton').style.visibility = 'visible';
+
+                            }
+
+                        },function(err){
+                            $log.error('ERROR' + JSON.stringify(err));
+                        });
+
+                    },function(error){
+                        $log.error('ERROR' + JSON.stringify(error));
+                        $scope.loadingH = false;
+
+                    });
+                }
+
+                // Save Plan
+                $scope.submitThePlan = function(typ){
+                    //check if any button has already been pressed
+                    if(!$scope.clickedOnce){
+                        $scope.loadingH = true;
+
+                        var tempArry = [];
+                        var deleteITems = [];
+                        var weekNum = 0;
+                        angular.forEach($scope.setting_Records.dataWrapper, function(record, key) {
+                            angular.forEach(record.dayMon, function(item, k) {
+                                if(item.selectedDay === true){
+                                    tempArry.push(item);
+                                }
+
+                                if(item.selectedDay === false && item.evetnId != undefined){
+                                    deleteITems.push(item);
+                                }
+                                weekNum = weekNum < parseInt(item.holReason) ? parseInt(item.holReason) : weekNum;
+                            });
+                        });
+
+                        var json = angular.toJson(tempArry);
+                        var delJson = angular.toJson(deleteITems);
+                        $log.info('DELETE ARRAY' + delJson);
+
+                        if(typ == 'Save'){
+                            $scope.loadingH = false;
+                            SAVE_RECORDS.saveThePlan(PJP_PlanningController_2.savePlan,json,$scope.monthName.number.toString(),'','',weekNum,$scope.pjpId,'Save').then(function(response){
+                                $scope.loadingH = true;
+                                if(response != undefined && response != ''){
+                                    window.location.href = '/'+response;
+                                }
+                            },function(error){
+                                $log.error('ERROR' + JSON.stringify(error));
+                                $scope.loadingH = false;
+                            });
+                        }else{
+                            SAVE_RECORDS.saveThePlan(PJP_PlanningController_2.savePlan,json,$scope.monthName.number.toString(),'','',weekNum,$scope.pjpId,'Submit').then(function(response){
+                                $scope.loadingH = false;
+                                if(response != undefined && response != ''){
+                                    window.location.href = '/'+response;
+                                }
+                            },function(error){
+                                $log.error('ERROR' + JSON.stringify(error));
+                                $scope.loadingH = false;
+                            });
+                        }
+                        $scope.clickedOnce = true;
+                    }
+                }
+
+                // City Change
+                $scope.cityNameTemp = '';
+
+                $scope.cityChangeFunction = function(){
+                    if($scope.cityName != 'Select City'){
+                        $scope.cityNameTemp = $scope.cityName ;
+                    }else{
+                        $scope.cityNameTemp = '';
+                    }
+                }
+
+                $scope.categoryChangeFunction = function(){
+                    if($scope.categoryName != 'Select Category'){
+                        $scope.cateTemp = $scope.categoryName;
+                    }else{
+                        $scope.cateTemp = '';
+                    }
+                }
+
+                $scope.showTheRow = function(acc){
+                    if($scope.cityName == 'Select City' && $scope.categoryName == 'Select Category'){
+                        return true;
+                    }else if(acc.BillingCity == $scope.cityName && $scope.categoryName == 'Select Category'){
+                        return true;
+                    }else if(acc.Category__c == $scope.categoryName && $scope.cityName == 'Select City'){
+                        return true;
+                    }else if(acc.Category__c == $scope.categoryName && acc.BillingCity == $scope.cityName){
+                        return true;
+                    }else{
+                        return false;
+                    }
+                }
+
+                $scope.addDataRemove = function(rowData){
+                    $log.info(JSON.stringify(rowData));
+                }
+
+                $scope.$watch('monthName', function(newValue){
+                    if ($scope.initialWatch) {
+                        $scope.initialWatch = false;
+                    } else {
+                        //alert(newValue);
+                        //Once the value changes, clear the warning message
+                        $scope.currentMonth.message = 'ERROR';
+
+                    }
+                });
+
+            }]);
+            </script>
+
+        </body>
+
+    </html>
+</apex:page>
