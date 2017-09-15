@@ -15,22 +15,29 @@ global with sharing class PJP_WeeklyPlanCntrl {
 
         Map<String, Integer> monNames = new Map<String,Integer>{'January' => 1,'February' => 2,'March' => 3,'April' => 4,'May' => 5,'June' => 6,'July' => 7,'August' => 8,'September' => 9,'October' => 10,'November' => 11, 'December' => 12};
 
-            Map<String,Set<Integer>> mapOfOldRecords = new Map<String,Set<Integer>>();
+        //Map<String,Set<Integer>> mapOfOldRecords = new Map<String,Set<Integer>>();
+        Map<String,Map<Integer, String>> mapOfOldRecords = new Map<String,Map<Integer, String>>();
+
 
         Boolean setReadOnly = false;
 
         if(weekPlan.Weekly_Plan_Approval_Status__c == 'Submitted For Approval' || weekPlan.Weekly_Plan_Approval_Status__c == 'Approved'){
             setReadOnly = true;
         }
+
         //Get Old Records
         for(Event ev : [SELECT Id,ActivityDate,Customer__c FROM Event WHERE WhatId =:weekPlan.Id
                         AND Status__c != 'Discarded' ORDER BY Customer__c]){
-            Set<Integer> temp = new Set<Integer>();
+            Map<Integer,String> temp = new Map<Integer,String>();
+            //Set<Integer> temp = new Set<Integer>();
+
             if(mapOfOldRecords.containsKey(ev.Customer__c)){
                 temp = mapOfOldRecords.get(ev.Customer__c);
             }
 
-            temp.add(ev.ActivityDate.day());
+            //temp.add(ev.ActivityDate.day());
+            temp.put(ev.ActivityDate.day(), ev.Id);
+
             mapOfOldRecords.put(ev.Customer__c,temp);
         }
 
