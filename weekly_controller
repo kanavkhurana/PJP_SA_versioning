@@ -23,7 +23,8 @@ global with sharing class PJP_WeeklyPlanCntrl {
             setReadOnly = true;
         }
         //Get Old Records
-        for(Event ev : [SELECT Id,ActivityDate,Customer__c FROM Event WHERE WhatId =:weekPlan.Id ORDER BY Customer__c]){
+        for(Event ev : [SELECT Id,ActivityDate,Customer__c FROM Event WHERE WhatId =:weekPlan.Id
+                        AND Status__c != 'Discarded' BY Customer__c]){
             Set<Integer> temp = new Set<Integer>();
             if(mapOfOldRecords.containsKey(ev.Customer__c)){
                 temp = mapOfOldRecords.get(ev.Customer__c);
@@ -164,7 +165,8 @@ global with sharing class PJP_WeeklyPlanCntrl {
 
             Map<String, Integer> monNames = new Map<String,Integer>{'January' => 1,'February' => 2,'March' => 3,'April' => 4,'May' => 5,'June' => 6,'July' => 7,'August' => 8,'September' => 9,'October' => 10,'November' => 11, 'December' => 12};
 
-                for(Event ev : [SELECT Id,ActivityDate,Customer__c FROM Event WHERE WhatId =:pjpId ORDER BY Customer__c]){
+                for(Event ev : [SELECT Id,ActivityDate,Customer__c FROM Event WHERE WhatId =:pjpId
+                                AND Status__c != 'Discarded' ORDER BY Customer__c]){
                     Set<Integer> temp = new Set<Integer>();
                     if(mapOfOldRecords.containsKey(ev.Customer__c)){
                         temp = mapOfOldRecords.get(ev.Customer__c);
@@ -190,7 +192,7 @@ global with sharing class PJP_WeeklyPlanCntrl {
             Weekly_Journey_Plan__c wp = [SELECT Id,Total_Visits__c,Weekly_Plan_Approval_Status__c FROM Weekly_Journey_Plan__c WHERE Id =:pjpId];
             wp.Total_Visits__c = wp.Total_Visits__c+counterOfVisits;
             insert eventCal;
-            
+
             if(stateOfMethod == 'Submit'){
                 wp.Weekly_Plan_Approval_Status__c = 'Submitted For Approval';
                 update wp;
