@@ -24,7 +24,7 @@ global with sharing class PJP_WeeklyPlanCntrl {
         }
         //Get Old Records
         for(Event ev : [SELECT Id,ActivityDate,Customer__c FROM Event WHERE WhatId =:weekPlan.Id
-                        AND Status__c != 'Discarded' BY Customer__c]){
+                        AND Status__c != 'Discarded' ORDER BY Customer__c]){
             Set<Integer> temp = new Set<Integer>();
             if(mapOfOldRecords.containsKey(ev.Customer__c)){
                 temp = mapOfOldRecords.get(ev.Customer__c);
