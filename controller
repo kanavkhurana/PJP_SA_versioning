@@ -195,7 +195,7 @@ global with sharing class PJP_PlanningController_2 {
 
     //Save Plan
     @RemoteAction
-    global static String savePlan(String plan,String mnth, String yr, String ownerId,String weekNum,String pjpId,String stateOfMethod) {
+    global static String savePlan(String plan,String delPlan, String mnth, String yr, String ownerId,String weekNum,String pjpId,String stateOfMethod) {
 
         Id userId = ownerId != null && ownerId != '' ? ownerId : UserInfo.getUserId();
         Integer month = mnth != null && mnth != '' ? Integer.valueOf(mnth) : Date.today().month();
@@ -208,6 +208,9 @@ global with sharing class PJP_PlanningController_2 {
         try{
             List<DayList> returnList = new List<DayList>();
             returnList = (List<DayList>)JSON.deserialize(plan,List<DayList>.class);
+
+            List<DayList> returnListToDiscard = new List<DayList>();
+            returnListToDiscard = (List<DayList>)JSON.deserialize(delPlan,List<DayList>.class);
 
             Monthly_Journey_Plan__c monthPlan;
             List<Weekly_Journey_Plan__c> weekPlan = new List<Weekly_Journey_Plan__c>();
@@ -252,6 +255,9 @@ global with sharing class PJP_PlanningController_2 {
             Map<Integer,Integer> counterOfVisits = new Map<Integer,Integer>();
 
             List<Event> eventCal = new List<Event>();
+            List<Event> eventCalToDiscard = new List<Event>();
+
+            /*Insertion of new events*/
             for(DayList dList : returnList){
                 if(mapOfOldRecords.containsKey(dList.customerID)){
                     if(!mapOfOldRecords.get(dList.customerID).contains(dList.dayNumber)){
@@ -269,6 +275,27 @@ global with sharing class PJP_PlanningController_2 {
 
             }
             insert eventCal;
+
+            /*Discarding unchecked events*/
+            for(DayList dList : returnListToDiscard){
+              eventCalToDiscard.add(new Event(Id = evetnId, Status__c = 'Discarded'));
+                /*if(mapOfOldRecords.containsKey(dList.customerID)){
+                    if(!mapOfOldRecords.get(dList.customerID).contains(dList.dayNumber)){
+                        eventCal.add(new Event(Customer__c = dList.customerID,Type = 'Meeting',Subject = 'Meeting with '+dList.customerName,OwnerId = userId,WhatId = weekNumMap.get(dList.holReason).Id,ActivityDate = Date.newInstance(year,month,dList.dayNumber),StartDateTime = DateTime.newInstance(date.newInstance(year,month,dList.dayNumber), Time.newInstance(12, 0, 0, 0)),EndDateTime = DateTime.newInstance(date.newInstance(year,month,dList.dayNumber), Time.newInstance(13, 0, 0, 0))));
+                    }
+                }else {
+                    eventCal.add(new Event(Customer__c = dList.customerID,Type = 'Meeting',Subject = 'Meeting with '+dList.customerName,OwnerId = userId,WhatId = weekNumMap.get(dList.holReason).Id,ActivityDate = Date.newInstance(year,month,dList.dayNumber),StartDateTime = DateTime.newInstance(date.newInstance(year,month,dList.dayNumber), Time.newInstance(12, 0, 0, 0)),EndDateTime = DateTime.newInstance(date.newInstance(year,month,dList.dayNumber), Time.newInstance(13, 0, 0, 0))));
+                }
+
+                Integer temp = 1;
+                if(counterOfVisits.containsKey(dList.holReason)){
+                    temp = counterOfVisits.get(dList.holReason) + 1;
+                }
+                counterOfVisits.put(dList.holReason,temp);*/
+
+
+            }
+            update eventCalToDiscard;
 
             //Updating week plan to add count of visits
             weekPlan = new List<Weekly_Journey_Plan__c>();
@@ -292,7 +319,7 @@ global with sharing class PJP_PlanningController_2 {
             return null;
         }
     }
-    
+
     //Wrapper Class
     global class CurrentPlan{
         public String message {get;set;}

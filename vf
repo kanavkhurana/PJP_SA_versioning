@@ -1,4 +1,4 @@
-<apex:page showHeader="false" 
+<apex:page showHeader="false"
            sidebar="false"
            docType="html-5.0"
            standardStylesheets="false"
@@ -186,9 +186,9 @@
             }]);
 
             myapp.factory('SAVE_RECORDS', ['$q','$log', function($q,$log){
-                var handleReq = function(remoteCall,plan,mn,yr,on,wk,pjp,st) {
+                var handleReq = function(remoteCall,plan,delPlan, mn,yr,on,wk,pjp,st) {
                     var defer = $q.defer();
-                    remoteCall(plan,mn,yr,on,wk,pjp,st,
+                    remoteCall(plan,delPlan, mn,yr,on,wk,pjp,st,
                                function(result, event) {
                                    if(event.status) {
                                        defer.resolve(result);
@@ -204,8 +204,8 @@
                 }
 
                 return {
-                    saveThePlan: function(methodName,plan,mn,yr,on,wk,pjp,st) {
-                        return handleReq(methodName,plan,mn,yr,on,wk,pjp,st);
+                    saveThePlan: function(methodName,plan,delPlan, mn,yr,on,wk,pjp,st) {
+                        return handleReq(methodName,plan,delPlan, mn,yr,on,wk,pjp,st);
                     }
                 }
             }]);
@@ -369,7 +369,7 @@
 
                         if(typ == 'Save'){
                             $scope.loadingH = false;
-                            SAVE_RECORDS.saveThePlan(PJP_PlanningController_2.savePlan,json,$scope.monthName.number.toString(),'','',weekNum,$scope.pjpId,'Save').then(function(response){
+                            SAVE_RECORDS.saveThePlan(PJP_PlanningController_2.savePlan,json,delJson, $scope.monthName.number.toString(),'','',weekNum,$scope.pjpId,'Save').then(function(response){
                                 $scope.loadingH = true;
                                 if(response != undefined && response != ''){
                                     window.location.href = '/'+response;
@@ -379,7 +379,7 @@
                                 $scope.loadingH = false;
                             });
                         }else{
-                            SAVE_RECORDS.saveThePlan(PJP_PlanningController_2.savePlan,json,$scope.monthName.number.toString(),'','',weekNum,$scope.pjpId,'Submit').then(function(response){
+                            SAVE_RECORDS.saveThePlan(PJP_PlanningController_2.savePlan,json,delJson, $scope.monthName.number.toString(),'','',weekNum,$scope.pjpId,'Submit').then(function(response){
                                 $scope.loadingH = false;
                                 if(response != undefined && response != ''){
                                     window.location.href = '/'+response;
