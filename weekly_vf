@@ -1,0 +1,311 @@
+<apex:page showHeader="false" 
+           sidebar="false"
+           docType="html-5.0"
+           standardStylesheets="false"
+           applyBodyTag="false"
+           applyHtmlTag="false" standardController="Weekly_Journey_Plan__c" extensions="PJP_WeeklyPlanCntrl">
+
+<html lang="en" ng-app="PJP">
+    <head>
+    <title>Weekly Plan Editor</title>
+  <!-- This is theme for BootStrap current theme is Sandstone. you can choose from multiple themes by
+      just copy pasting the css from BootswapAllThemeComp  -->
+  <link href="{!URLFOR($Resource.BootstrapTheams,'BoostWatchTheams/yeti/bootstrap.min.css')}" rel="stylesheet" />
+
+  <!-- This files is required for BootStrap CSS -->
+  <link href="{!URLFOR($Resource.BootstrapTheams,'BoostWatchTheams/asset/css/bootswatch.min.css')}" rel="stylesheet" />
+
+  <link href="{!URLFOR($Resource.LoadingAnimation)}" rel="stylesheet" />
+
+    <script type="text/javascript">
+    var myapp = angular.module('PJP', ['mgcrea.ngStrap']);
+
+
+
+
+    myapp.factory('FETCH_RECORDS', ['$q','$log', function($q,$log){
+        var handleReq = function(remoteCall,mn) {
+        var defer = $q.defer();
+           remoteCall(mn,
+              function(result, event) {
+                if(event.status) {
+                  defer.resolve(result);
+                }
+                else {
+                  $log.error(event.message);
+                  defer.reject(event.message);
+                }
+              },
+              {escape:false, buffer: false}
+            );
+            return defer.promise;
+          }
+
+        return {
+            getAllRecords: function(methodName,mn) {
+                return handleReq(methodName,mn);
+            }
+        }
+    }]);
+
+    myapp.factory('SAVE_RECORDS', ['$q','$log', function($q,$log){
+        var handleReq = function(remoteCall,plan,mn,typ) {
+        var defer = $q.defer();
+           remoteCall(plan,mn,typ,
+              function(result, event) {
+                if(event.status) {
+                  defer.resolve(result);
+                }
+                else {
+                  $log.error(event.message);
+                  defer.reject(event.message);
+                }
+              },
+              {escape:false, buffer: false}
+            );
+            return defer.promise;
+          }
+
+        return {
+            saveThePlan: function(methodName,plan,mn,typ) {
+                return handleReq(methodName,plan,mn,typ);
+            }
+        }
+    }]);
+    myapp.controller('HomeController', ['$scope','$log','FETCH_RECORDS','SAVE_RECORDS',function($scope,$log,FETCH_RECORDS,SAVE_RECORDS){
+
+        $scope.loadingH = true;
+        $scope.showWarning = true;
+
+        // Get All Setting records
+
+        $scope.pjpId = '{!$currentpage.parameters.id}';
+
+
+        if($scope.pjpId != undefined && $scope.pjpId != ''){
+
+            $scope.showWarning = false;
+
+            var promise = FETCH_RECORDS.getAllRecords(PJP_WeeklyPlanCntrl.getRelatedAccounts,$scope.pjpId);
+
+                $scope.setting_Records = [];
+            $scope.cityList = [];
+            $scope.categoryList = [];
+
+                promise.then(function(response){
+                    $scope.setting_Records = response;
+                    $scope.coloumState = $scope.setting_Records.dataWrapper[0].dayMon;
+                $scope.cityList = $scope.setting_Records.cityList;
+                $scope.categoryList = $scope.setting_Records.categoryList;
+                $scope.cityList.unshift('Select City');
+                $scope.categoryList.unshift('Select Category');
+                $scope.cityName = $scope.cityList[0];
+                $scope.categoryName = $scope.categoryList[0];
+                    $scope.loadingH = false;
+                    //$log.info('ERROR' + JSON.stringify(response));
+                },function(error){
+                    $log.error('ERROR' + JSON.stringify(error));
+                    $scope.loadingH = false;
+
+                });
+        }else{
+
+            $scope.loadingH = false;
+        }
+
+        $scope.submitThePlan = function(typ){
+            $scope.loadingH = true;
+
+            var tempArry = [];
+
+            angular.forEach($scope.setting_Records.dataWrapper, function(record, key) {
+                angular.forEach(record.dayMon, function(item, k) {
+                    if(item.selectedDay === true){
+                        tempArry.push(item);
+                    }
+                });
+            });
+
+            var json = angular.toJson(tempArry);
+
+
+            if(typ == 'Save'){
+                $scope.loadingH = false;
+                SAVE_RECORDS.saveThePlan(PJP_WeeklyPlanCntrl.savePlan,json,$scope.pjpId,'Save').then(function(response){
+                    $scope.loadingH = false;
+                    if(response != undefined && response != ''){
+                      window.location.href = '/'+response;
+                    }
+                },function(error){
+                    $log.error('ERROR' + JSON.stringify(error));
+                    $scope.loadingH = false;
+                });
+            }else{
+               SAVE_RECORDS.saveThePlan(PJP_WeeklyPlanCntrl.savePlan,json,$scope.pjpId,'Submit').then(function(response){
+                    $scope.loadingH = false;
+                    if(response != undefined && response != ''){
+                     window.location.href = '/'+response;
+                    }
+                },function(error){
+                    $log.error('ERROR' + JSON.stringify(error));
+                    $scope.loadingH = false;
+                });
+            }
+        }
+
+        // City Change
+        $scope.cityNameTemp = '';
+
+        $scope.cityChangeFunction = function(){
+            if($scope.cityName != 'Select City'){
+                $scope.cityNameTemp = $scope.cityName ;
+            }else{
+                $scope.cityNameTemp = '';
+            }
+        }
+
+        $scope.categoryChangeFunction = function(){
+          if($scope.categoryName != 'Select Category'){
+                $scope.cateTemp = $scope.categoryName;
+            }else{
+                $scope.cateTemp = '';
+            }
+        }
+
+        $scope.showTheRow = function(acc){
+            if($scope.cityName == 'Select City' && $scope.categoryName == 'Select Category'){
+              return true;
+            }else if(acc.BillingCity == $scope.cityName && $scope.categoryName == 'Select Category'){
+              return true;
+            }else if(acc.Category__c == $scope.categoryName && $scope.cityName == 'Select City'){
+              return true;
+            }else if(acc.Category__c == $scope.categoryName && acc.BillingCity == $scope.cityName){
+              return true;
+            }else{
+              return false;
+            }
+        }
+
+
+    }]);
+
+    </script>
+    <style type="text/css">
+        body{
+            padding-top: 0px !important;
+        }
+
+        .Holiday{
+            background-color : #848484;
+        }
+
+        .Normal{
+            background-color : #FFF;
+        }
+
+        .redClass {
+           color: #EC0C24;
+           font-weight: bold;
+        }
+
+        .greenClass {
+            color: #11BB2B;
+            font-weight: bold;
+        }
+
+        .tooltipNew {
+            border: 1px solid black;
+            width: 390px;
+            margin-left: 5px;
+            margin-top: -48px;
+            background-color: darkcyan;
+            border-radius: 4px;
+            height: 20px;
+            color: white;
+            position:absolute;
+        }
+
+    </style>
+    </head>
+    <body ng-controller="HomeController">
+      <nav class="navbar navbar-inverse">
+  <div class="container-fluid">
+    <div class="navbar-header">
+
+      <a class="navbar-brand" ng-href="/{{pjpId}}">Home </a>
+    </div>
+    <div class="collapse navbar-collapse" id="bs-example-navbar-collapse-1">
+      <ul class="nav navbar-nav navbar-right" ng-show="!showWarning">
+        <li><a ng-click="submitThePlan('Save')" style="cursor: pointer;">Save</a></li>
+        <li><a ng-click="submitThePlan('Submit')" style="cursor: pointer;">Submit</a></li>
+      </ul>
+    </div>
+
+  </div>
+</nav>
+
+<div class="loading" ng-show="loadingH" >Loading&#8230;</div>
+
+
+
+<div class="panel panel-primary" ng-show="!showWarning">
+  <div class="panel-heading">
+    <h3 class="panel-title" style="padding-top:7.5px;float:left;">Select Dates</h3>
+    <div class="input-group">
+                     <select  class="form-control" ng-model="cityName" ng-options="item as item for item in cityList" style="width:150px;margin-left: 100px" ng-change="cityChangeFunction()">
+                     </select>
+                     <select  class="form-control" ng-model="categoryName" ng-options="item as item for item in categoryList | orderBy:'toString()'" style="width:150px;margin-left: 10px" ng-change="categoryChangeFunction()">
+                     </select>
+
+    </div>
+  </div>
+  <div class="panel-body">
+    <table class="table">
+            <thead>
+                <tr>
+                    <th>
+                      Customer Name
+                    </th>
+                    <th>
+                      <label ng-mouseover="tooltip=true" ng-mouseleave="tooltip=false">Past Visits</label>
+                        <div class="tooltipNew" ng-show="tooltip" >Actual visits made during the fiscal year out of target visits</div>
+                    </th>
+                    <th ng-repeat="item in coloumState" ng-class="item.typeCol">
+                        {{item.dayNumber}}
+                    </th>
+                </tr>
+            </thead>
+            <tbody style="overflow:scroll;" >
+                <tr ng-repeat="acc in setting_Records.dataWrapper" ng-show="showTheRow(acc.account)">
+                    <td class="filterable-cell">{{acc.account.Name}} - {{acc.account.BillingCity}}</td>
+                    <td class="filterable-cell" ng-class="acc.pastCompVisits.indexOf('0') == 0 ? 'redClass' : 'greenClass' ">{{acc.pastCompVisits}}</td>
+                    <td ng-repeat="set in acc.dayMon" ng-class="set.typeCol" class="filterable-cell">
+                        <input type="checkbox" ng-model="set.selectedDay" ng-disabled="set.typeCol == 'Holiday' || set.readOnlySt"/>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+  </div>
+</div>
+
+<div class="alert alert-dismissible alert-warning" ng-show="showWarning">
+      <button type="button" class="close" data-dismiss="alert">&times;</button>
+      <h4>No New Weekly Plan!</h4>
+      <p>Please create monthly plan and to modifiy weekly please use change weekly plan button on weekly plan detail page </p>
+</div>
+
+
+
+    <!-- JS Files -->
+     <!-- AngularJS main JS file Required -->
+      <apex:includeScript value="{!URLFOR($Resource.AngularBootPack,'AngularBootStapNew/js/angular.min.js')}"/>
+    <!-- AngularJS with Bootstrap files ( optional )-->
+     <apex:includeScript value="{!URLFOR($Resource.AngularBootPack,'AngularBootStapNew/js/angular-strap.min.js')}"/>
+     <apex:includeScript value="{!URLFOR($Resource.AngularBootPack,'AngularBootStapNew/js/angular-strap.tpl.min.js')}"/>
+
+
+
+    </body>
+
+</html>
+</apex:page>
