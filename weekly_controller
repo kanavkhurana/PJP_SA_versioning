@@ -217,31 +217,16 @@ global with sharing class PJP_WeeklyPlanCntrl {
                 counterOfVisits.put(dList.holReason,temp);
             }
 
-          insert eventCal;
+            insert eventCal;
 
             Weekly_Journey_Plan__c wp = [SELECT Id,Total_Visits__c,Weekly_Plan_Approval_Status__c,Week__c FROM Weekly_Journey_Plan__c WHERE Id =:pjpId];
             //wp.Total_Visits__c = wp.Total_Visits__c+counterOfVisits;
-            wp.Total_Visits__c = counterOfVisits.containsKey(Week__c) ? counterOfVisits.get(Week__c) : 0;
+            wp.Total_Visits__c = counterOfVisits.containsKey(Integer.valueOf(wp.Week__c)) ? counterOfVisits.get(Integer.valueOf(wp.Week__c)) : 0;
 
 
             /*Discarding unchecked events*/
             for(DayList dList : returnListToDiscard){
               eventCalToDiscard.add(new Event(Id = dList.evetnId, Status__c = 'Discarded'));
-                /*if(mapOfOldRecords.containsKey(dList.customerID)){
-                    if(!mapOfOldRecords.get(dList.customerID).contains(dList.dayNumber)){
-                        eventCal.add(new Event(Customer__c = dList.customerID,Type = 'Meeting',Subject = 'Meeting with '+dList.customerName,OwnerId = userId,WhatId = weekNumMap.get(dList.holReason).Id,ActivityDate = Date.newInstance(year,month,dList.dayNumber),StartDateTime = DateTime.newInstance(date.newInstance(year,month,dList.dayNumber), Time.newInstance(12, 0, 0, 0)),EndDateTime = DateTime.newInstance(date.newInstance(year,month,dList.dayNumber), Time.newInstance(13, 0, 0, 0))));
-                    }
-                }else {
-                    eventCal.add(new Event(Customer__c = dList.customerID,Type = 'Meeting',Subject = 'Meeting with '+dList.customerName,OwnerId = userId,WhatId = weekNumMap.get(dList.holReason).Id,ActivityDate = Date.newInstance(year,month,dList.dayNumber),StartDateTime = DateTime.newInstance(date.newInstance(year,month,dList.dayNumber), Time.newInstance(12, 0, 0, 0)),EndDateTime = DateTime.newInstance(date.newInstance(year,month,dList.dayNumber), Time.newInstance(13, 0, 0, 0))));
-                }
-
-                Integer temp = 1;
-                if(counterOfVisits.containsKey(dList.holReason)){
-                    temp = counterOfVisits.get(dList.holReason) + 1;
-                }
-                counterOfVisits.put(dList.holReason,temp);*/
-
-
             }
             update eventCalToDiscard;
 

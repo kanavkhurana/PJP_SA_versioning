@@ -79,7 +79,8 @@ global with sharing class PJP_PlanningController_2 {
                                              }
 
             for(Event ev : [SELECT Id,ActivityDate,Customer__c FROM Event
-                            WHERE WhatId IN :weekPlanIds ORDER BY Customer__c]){
+                            WHERE WhatId IN :weekPlanIds
+                            AND Status__c != 'Discarded' ORDER BY Customer__c]){
                                 Map<Integer,String> temp = new Map<Integer,String>();
                                 if(mapOfOldRecords.containsKey(ev.Customer__c)){
                                     temp = mapOfOldRecords.get(ev.Customer__c);
@@ -226,7 +227,8 @@ global with sharing class PJP_PlanningController_2 {
 
                 weekPlan = [SELECT Id,Week__c FROM Weekly_Journey_Plan__c WHERE Monthly_Journey_Plan__c =:pjpId];
 
-                for(Event ev : [SELECT Id,ActivityDate,Customer__c FROM Event WHERE WhatId IN :weekPlan ORDER BY Subject]){
+                for(Event ev : [SELECT Id,ActivityDate,Customer__c FROM Event WHERE WhatId IN :weekPlan
+                                AND Status__c != 'Discarded' ORDER BY Subject]){
                     Set<Integer> temp = new Set<Integer>();
                     if(mapOfOldRecords.containsKey(ev.Customer__c)){
                         temp = mapOfOldRecords.get(ev.Customer__c);
