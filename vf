@@ -49,6 +49,12 @@
                 color: white;
                 position:absolute;
                 }
+                .ahevent{
+                  position: absolute;
+                  left: 13px;
+                  bottom: 12px;
+                  font-size: 9px;
+                }
 
             </style>
         </head>
@@ -118,6 +124,7 @@
                                 <td class="filterable-cell" ng-class="acc.pastCompVisits.indexOf('0') == 0 ? 'redClass' : 'greenClass' ">{{acc.pastCompVisits}}</td>
                                 <td ng-repeat="set in acc.dayMon" ng-class="set.typeCol" class="filterable-cell">
                                     <input type="checkbox" ng-model="set.selectedDay" ng-disabled="set.typeCol == 'Holiday' || set.readOnlySt" ng-change="addDataRemove(set)"/>
+                                    <span class="ahevent" ng-if="::(!set.WhatId.startsWith('a02'))">AH</span>
                                 </td>
                             </tr>
                         </tbody>
