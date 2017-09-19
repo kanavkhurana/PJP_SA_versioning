@@ -51,7 +51,9 @@ global with sharing class PJP_PlanningController_2 {
         Integer month = mnth != null && mnth != '' ? Integer.valueOf(mnth) : Date.today().month();
         Integer year = yr != null && yr != '' ? Integer.valueOf(yr) : Date.today().year();
         Integer week = weekNum != null && weekNum != '' ? Integer.valueOf(weekNum) : 1 ;
-        Map<String,Map<Integer,String>> mapOfOldRecords = new Map<String,Map<Integer,String>>();
+        //Map<String,Map<Integer,String>> mapOfOldRecords = new Map<String,Map<Integer,String>>();
+        Map<String,Map<Integer,Event>> mapOfOldRecords = new Map<String,Map<Integer,Event>>();
+
         Map<String,String> accountPastVisit = new Map<String,String>();
 
         Date actDate = (month > 3 ? Date.newInstance(year,4,1) : Date.newInstance(year-1,4,1));
@@ -110,7 +112,7 @@ global with sharing class PJP_PlanningController_2 {
                                         WHERE OwnerId =: scopedUser.Id
                                         AND ActivityDate >=: queryStartDate AND ActivityDate <=: queryEndDate
                                         AND Status__c != 'Discarded' ORDER BY Customer__c]){
-                            Map<Integer,String> temp = new Map<Integer,String>();
+                            Map<Integer,Event> temp = new Map<Integer,Event>();
                             if(mapOfOldRecords.containsKey(ev.Customer__c)){
                                 temp = mapOfOldRecords.get(ev.Customer__c);
                             }
@@ -202,7 +204,7 @@ global with sharing class PJP_PlanningController_2 {
                     dl.typeCol = 'Normal';
                     dl.holReason = counter;
                     if(mapOfOldRecords.containsKey(acc.Id)){
-                        Map<Integer,String> temp = new Map<Integer,String>();
+                        Map<Integer,Event> temp = new Map<Integer,Event>();
                         temp = mapOfOldRecords.get(acc.Id);
                         dl.selectedDay = temp.containsKey(day_count) ? true : false;
                         //dl.evetnId = temp.containsKey(day_count) ? temp.get(day_count) : null;

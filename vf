@@ -52,8 +52,11 @@
                 .ahevent{
                   position: absolute;
                   left: 13px;
-                  bottom: 12px;
+                  bottom: 10px;
                   font-size: 9px;
+                }
+                .adjustCheckboxClass {
+                    left: -2px;
                 }
 
             </style>
@@ -123,8 +126,10 @@
                                 <td class="filterable-cell">{{acc.account.Name}} - {{acc.account.BillingCity}} - {{acc.account.Unit_Name__c}}</td>
                                 <td class="filterable-cell" ng-class="acc.pastCompVisits.indexOf('0') == 0 ? 'redClass' : 'greenClass' ">{{acc.pastCompVisits}}</td>
                                 <td ng-repeat="set in acc.dayMon" ng-class="set.typeCol" class="filterable-cell">
+                                  <div style="position:relative;" ng-class="{'adjustCheckboxClass': set.dayNumber >=1 && set.dayNumber <= 9, '' : set.dayNumber <1 || set.dayNumber > 9}">
                                     <input type="checkbox" ng-model="set.selectedDay" ng-disabled="set.typeCol == 'Holiday' || set.readOnlySt" ng-change="addDataRemove(set)"/>
-                                    <span class="ahevent" ng-if="::(!set.WhatId.startsWith('a02'))">AH</span>
+                                    <span class="ahevent" ng-if="set.whatID != null && !set.whatID.startsWith('a02')">AH</span>
+                                  </div>
                                 </td>
                             </tr>
                         </tbody>
