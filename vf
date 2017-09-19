@@ -365,7 +365,7 @@
 
                         var json = angular.toJson(tempArry);
                         var delJson = angular.toJson(deleteITems);
-                        $log.info('DELETE ARRAY' + delJson);
+                        //$log.info('DELETE ARRAY' + delJson);
 
                         if(typ == 'Save'){
                             $scope.loadingH = false;

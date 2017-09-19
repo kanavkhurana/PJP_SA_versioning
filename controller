@@ -56,6 +56,12 @@ global with sharing class PJP_PlanningController_2 {
 
         Date actDate = (month > 3 ? Date.newInstance(year,4,1) : Date.newInstance(year-1,4,1));
 
+        User scopedUser = new User();
+        User currentUser = [SELECT Id, Name, UserRoleId, Profile.Name, UserRole.Name FROM User WHERE Id =: Userinfo.getUserId() LIMIT 1];
+
+        scopedUser = (pjpId != null && pjpId != '') ? [SELECT Id, Name,UserRoleId FROM User WHERE Id IN (SELECT OwnerId from Monthly_Journey_Plan__c WHERE Id =: pjpId)] :
+                        currentUser;
+
         for(AggregateResult agRest : [SELECT Count(Id),Customer__c FROM EVENT
                                       WHERE Status__c = 'Completed'
                                       AND Customer__c != NULL
@@ -78,17 +84,39 @@ global with sharing class PJP_PlanningController_2 {
                                                  weekPlanIds.add(wp.Id);
                                              }
 
-            for(Event ev : [SELECT Id,ActivityDate,Customer__c FROM Event
+            /*for(Event ev : [SELECT Id,ActivityDate,Customer__c FROM Event
                             WHERE WhatId IN :weekPlanIds
-                            AND Status__c != 'Discarded' ORDER BY Customer__c]){
+                            AND Status__c != 'Discarded' ORDER BY Customer__c]){*/
+            //Change Event query to include Ad-hoc events as well
+
+
+            /*for(Event ev : [SELECT Id,ActivityDate,Customer__c FROM Event
+                                            WHERE OwnerId =: scopedUser.Id
+                                            AND ActivityDate >= queryStartDate AND ActivityDate <= queryEndDate
+                                            AND Status__c != 'Discarded' ORDER BY Customer__c]){
                                 Map<Integer,String> temp = new Map<Integer,String>();
                                 if(mapOfOldRecords.containsKey(ev.Customer__c)){
                                     temp = mapOfOldRecords.get(ev.Customer__c);
                                 }
                                 temp.put(ev.ActivityDate.day(),ev.Id);
                                 mapOfOldRecords.put(ev.Customer__c,temp);
-                            }
+                            }*/
         }
+        //Move population of mapOfOldRecords the if condition so that it's populated for Creation and Edit both cases
+        Date queryStartDate = Date.newInstance(year, month, 1);
+        Date queryEndDate = Date.newInstance(year, month, date.daysInMonth(year, month));
+
+        for(Event ev : [SELECT Id,ActivityDate,Customer__c FROM Event
+                                        WHERE OwnerId =: scopedUser.Id
+                                        AND ActivityDate >= queryStartDate AND ActivityDate <= queryEndDate
+                                        AND Status__c != 'Discarded' ORDER BY Customer__c]){
+                            Map<Integer,String> temp = new Map<Integer,String>();
+                            if(mapOfOldRecords.containsKey(ev.Customer__c)){
+                                temp = mapOfOldRecords.get(ev.Customer__c);
+                            }
+                            temp.put(ev.ActivityDate.day(),ev.Id);
+                            mapOfOldRecords.put(ev.Customer__c,temp);
+                        }
 
         // Add Weekend Holiday List
         Set<String> weekendList = new Set<String>();
