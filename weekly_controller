@@ -1,252 +1,281 @@
 global with sharing class PJP_WeeklyPlanCntrl {
 
-    public PJP_WeeklyPlanCntrl(ApexPages.StandardController stdController) {
+  public PJP_WeeklyPlanCntrl(ApexPages.StandardController stdController) {
+  }
+
+  @RemoteAction
+  global static PJP_PlanningController.MainWrapper getRelatedAccounts(String weeklyPlanId) {
+
+    List<PJP_PlanningController.WrapperVisitPlanDays> dataWrapper = new List<PJP_PlanningController.WrapperVisitPlanDays>();
+    Set<String> cityList = new Set<String>();
+    Set<String> categoryList = new Set<String>();
+    PJP_PlanningController.MainWrapper returnList = new PJP_PlanningController.MainWrapper();
+
+    Weekly_Journey_Plan__c weekPlan = [SELECT Id,Week__c,Weekly_Plan_Approval_Status__c,Monthly_Journey_Plan__r.Visit_Plan_Month__c,Monthly_Journey_Plan__r.Visit_Plan_Year__c FROM Weekly_Journey_Plan__c WHERE Id=:weeklyPlanId];
+
+    Map<String, Integer> monNames = new Map<String,Integer>{'January' => 1,'February' => 2,'March' => 3,'April' => 4,'May' => 5,'June' => 6,'July' => 7,'August' => 8,'September' => 9,'October' => 10,'November' => 11, 'December' => 12};
+
+    //Map<String,Set<Integer>> mapOfOldRecords = new Map<String,Set<Integer>>();
+    //Map<String,Map<Integer, String>> mapOfOldRecords = new Map<String,Map<Integer, String>>();
+    Map<String,Map<Integer, Event>> mapOfOldRecords = new Map<String,Map<Integer, Event>>();
+
+
+
+    Boolean setReadOnly = false;
+
+    if(weekPlan.Weekly_Plan_Approval_Status__c == 'Submitted For Approval' || weekPlan.Weekly_Plan_Approval_Status__c == 'Approved'){
+      setReadOnly = true;
+    }
+    User scopedUser = new User();
+    User currentUser = [SELECT Id, Name, UserRoleId, Profile.Name, UserRole.Name FROM User WHERE Id =: Userinfo.getUserId() LIMIT 1];
+
+    //Get MJP Owner ID
+    Monthly_Journey_Plan__c linkedMJP = [SELECT OwnerID FROM Monthly_Journey_Plan__c WHERE Id IN (SELECT Monthly_Journey_Plan__c FROM Weekly_Journey_Plan__c WHERE ID =: weeklyPlanId) ];
+    scopedUser = (weeklyPlanId != null && weeklyPlanId != '') ? [SELECT Id, Name,UserRoleId FROM User WHERE Id=: linkedMJP.OwnerID] :
+    currentUser;
+
+    // Set Weekend apart
+    Set<String> weekendList = new Set<String>();
+    for(String day_name : Label.NonWorkingDays.split(';')) {
+      weekendList.add(day_name);
     }
 
-    @RemoteAction
-    global static PJP_PlanningController.MainWrapper getRelatedAccounts(String weeklyPlanId) {
+    List<Integer> dayNumberWJP = new List<Integer>();
+    Integer counter = 1;
 
-        List<PJP_PlanningController.WrapperVisitPlanDays> dataWrapper = new List<PJP_PlanningController.WrapperVisitPlanDays>();
-        Set<String> cityList = new Set<String>();
-        Set<String> categoryList = new Set<String>();
-        PJP_PlanningController.MainWrapper returnList = new PJP_PlanningController.MainWrapper();
+    for(Integer day_count = 1 ; day_count <= date.daysInMonth(Integer.valueOf(weekPlan.Monthly_Journey_Plan__r.Visit_Plan_Year__c), Integer.valueOf(monNames.get(weekPlan.Monthly_Journey_Plan__r.Visit_Plan_Month__c))); day_count ++){
+      DateTime dummy_date = DateTime.newInstance(Date.newInstance(Integer.valueOf(weekPlan.Monthly_Journey_Plan__r.Visit_Plan_Year__c), Integer.valueOf(monNames.get(weekPlan.Monthly_Journey_Plan__r.Visit_Plan_Month__c)),day_count), Time.newInstance(0, 0, 0, 0));
 
-        Weekly_Journey_Plan__c weekPlan = [SELECT Id,Week__c,Weekly_Plan_Approval_Status__c,Monthly_Journey_Plan__r.Visit_Plan_Month__c,Monthly_Journey_Plan__r.Visit_Plan_Year__c FROM Weekly_Journey_Plan__c WHERE Id=:weeklyPlanId];
+      if(!weekendList.contains(dummy_date.format('EEE')) && counter == Integer.valueOf(weekPlan.Week__c)){
+        dayNumberWJP.add(day_count);
+      }else if(weekendList.contains(dummy_date.format('EEE'))){
+        counter++;
+      }
+    }
 
-        Map<String, Integer> monNames = new Map<String,Integer>{'January' => 1,'February' => 2,'March' => 3,'April' => 4,'May' => 5,'June' => 6,'July' => 7,'August' => 8,'September' => 9,'October' => 10,'November' => 11, 'December' => 12};
+    //Get Old Records
+    /*for(Event ev : [SELECT Id,ActivityDate,Customer__c FROM Event WHERE WhatId =:weekPlan.Id
+    AND Status__c != 'Discarded' ORDER BY Customer__c]){*/
+    Date queryStartDate = Date.newInstance(Integer.valueOf(weekPlan.Monthly_Journey_Plan__r.Visit_Plan_Year__c), Integer.valueOf(monNames.get(weekPlan.Monthly_Journey_Plan__r.Visit_Plan_Month__c)), dayNumberWJP.get(0));
+    Date queryEndDate = Date.newInstance(Integer.valueOf(weekPlan.Monthly_Journey_Plan__r.Visit_Plan_Year__c), Integer.valueOf(monNames.get(weekPlan.Monthly_Journey_Plan__r.Visit_Plan_Month__c)), dayNumberWJP.get(dayNumberWJP.size() - 1));
 
-        //Map<String,Set<Integer>> mapOfOldRecords = new Map<String,Set<Integer>>();
-        Map<String,Map<Integer, String>> mapOfOldRecords = new Map<String,Map<Integer, String>>();
+    for(Event ev : [SELECT Id,ActivityDate,Customer__c,WhatID FROM Event WHERE OwnerID =:scopedUser.Id
+    AND ActivityDate >=: queryStartDate AND ActivityDate <=: queryEndDate
+    AND Status__c != 'Discarded' ORDER BY Customer__c]){
+      Map<Integer,Event> temp = new Map<Integer,Event>();
+      //Set<Integer> temp = new Set<Integer>();
+
+      if(mapOfOldRecords.containsKey(ev.Customer__c)){
+        temp = mapOfOldRecords.get(ev.Customer__c);
+      }
+
+      //temp.add(ev.ActivityDate.day());
+      //temp.put(ev.ActivityDate.day(), ev.Id);
+      temp.put(ev.ActivityDate.day(), ev);
+      mapOfOldRecords.put(ev.Customer__c,temp);
+    }
+
+    Date actDate = (monNames.get(weekPlan.Monthly_Journey_Plan__r.Visit_Plan_Month__c) > 3 ? Date.newInstance(Integer.valueOf(weekPlan.Monthly_Journey_Plan__r.Visit_Plan_Year__c),4,1) : Date.newInstance(Integer.valueOf(weekPlan.Monthly_Journey_Plan__r.Visit_Plan_Year__c)-1,4,1));
+    Map<String,Integer> accountPastVisit = new Map<String,Integer>();
+
+    //system.assertEquals(actDate, null);
 
 
-        Boolean setReadOnly = false;
+    for(AggregateResult agRest : [SELECT Count(Id),Customer__c FROM EVENT WHERE Status__c = 'Completed' AND Customer__c != NULL AND ActivityDate > :actDate Group By Customer__c]){
+      accountPastVisit.put(String.valueOf(agRest.get('Customer__c')),Integer.valueOf(agRest.get('expr0')));
+    }
 
-        if(weekPlan.Weekly_Plan_Approval_Status__c == 'Submitted For Approval' || weekPlan.Weekly_Plan_Approval_Status__c == 'Approved'){
-            setReadOnly = true;
+    /*Integer counter = 1;
+
+    Set<Integer> dayNumber = new Set<Integer>();
+
+    for(Integer day_count = 1 ; day_count <= date.daysInMonth(Integer.valueOf(weekPlan.Monthly_Journey_Plan__r.Visit_Plan_Year__c), monNames.get(weekPlan.Monthly_Journey_Plan__r.Visit_Plan_Month__c)); day_count ++){
+      DateTime dummy_date = DateTime.newInstance(Date.newInstance(Integer.valueOf(weekPlan.Monthly_Journey_Plan__r.Visit_Plan_Year__c), monNames.get(weekPlan.Monthly_Journey_Plan__r.Visit_Plan_Month__c),day_count), Time.newInstance(0, 0, 0, 0));
+
+      if(!weekendList.contains(dummy_date.format('EEE')) && counter == Integer.valueOf(weekPlan.Week__c)){
+        dayNumber.add(day_count);
+      }else if(weekendList.contains(dummy_date.format('EEE'))){
+        counter++;
+      }
+    }*/
+
+
+    //Find all Subordinate Roles
+    Map<Id, UserRole> subRoles = new Map<Id, UserRole>([SELECT Id FROM UserRole WHERE ParentRoleId =: UserInfo.getUserRoleId()]);
+    //Query all users that belong to the subRoles.
+    Map<Id, User> subUsers = new Map<Id, User>([SELECT Id from User WHERE UserRoleId =: subRoles.keySet()]);
+    //Add the current user's id to the SubUsersId
+    Set<Id> usersToQuery = new Set<Id>();
+    usersToQuery.addAll(subUsers.keySet());
+    usersToQuery.add(UserInfo.getUserId());
+
+    List<Account> accountForAllUsers = new List <Account> ();
+    List<AccountShare> accountShared = new List <AccountShare> ();
+    Set<Id> accIdforDealers = new Set<Id>();
+
+    if (weeklyPlanId != null && weeklyPlanId != '') {
+
+      Weekly_Journey_Plan__c mp = [SELECT Id,Monthly_Journey_Plan__r.OwnerId FROM Weekly_Journey_Plan__c
+      WHERE Id = :weeklyPlanId];
+      accountShared = [SELECT AccountId, Account.OwnerId, UserOrGroupId, Account.RecordType.Name FROM AccountShare
+      WHERE Account.RecordType.Name = 'Dealer'
+      AND UserOrGroupId = :mp.Monthly_Journey_Plan__r.OwnerId];
+      if (accountShared != NULL && !accountShared.isEmpty()) {
+        for (AccountShare accshare :accountShared) {
+          accIdforDealers.add(accshare.AccountId);
+        }
+      }
+
+      if (mp != NULL ) {
+        accountForAllUsers = [SELECT Id,Name,BillingCity,Category__c FROM Account
+        WHERE (RecordType.Name = 'Customer' AND (OwnerID = :mp.Monthly_Journey_Plan__r.OwnerId)) OR Id IN : accIdforDealers
+        ORDER BY Name];
+      }
+    } else {
+      accountShared = [SELECT AccountId, Account.OwnerId, UserOrGroupId, Account.RecordType.Name FROM AccountShare
+      WHERE Account.RecordType.Name = 'Dealer'
+      AND UserOrGroupId IN :usersToQuery];
+      if (accountShared != NULL && !accountShared.isEmpty()) {
+        for (AccountShare accshare :accountShared) {
+          accIdforDealers.add(accshare.AccountId);
+        }
+      }
+
+      accountForAllUsers = [SELECT Id,Name,BillingCity,Category__c FROM Account
+      WHERE (RecordType.Name = 'Customer' AND (OwnerID IN :usersToQuery)) OR Id IN : accIdforDealers
+      ORDER BY Name];
+    }
+
+    for(Account acc : accountForAllUsers) {
+      List<DayList> listOfWeekndsAndHoliday = new List<DayList>();
+      // Add cities
+      cityList.add(acc.BillingCity);
+      // Add Categories
+      categoryList.add(acc.Category__c);
+      for(Integer dayN : dayNumberWJP){
+
+
+        DayList dl = new DayList();
+
+        dl.customerID = acc.Id;
+        dl.customerName = acc.Name;
+        dl.readOnlySt = setReadOnly;
+        dl.dayNumber = dayN;
+        dl.typeCol = 'Normal';
+        dl.holReason = Integer.valueOf(weekPlan.Week__c);
+        if(mapOfOldRecords.containsKey(acc.Id)){
+          Map<Integer,Event> temp = new Map<Integer,Event>();
+          temp = mapOfOldRecords.get(acc.Id);
+
+          dl.selectedDay = temp.containsKey(dayN) ? true : false;
+          dl.evetnId = temp.containsKey(dayN) ? temp.get(dayN).Id : null;
+          dl.WhatID = temp.containsKey(dayN) ? temp.get(dayN).WhatId : null;
+
+        }else{
+          dl.selectedDay = false;
+          dl.evetnId = null;
+
         }
 
-        //Get Old Records
-        for(Event ev : [SELECT Id,ActivityDate,Customer__c FROM Event WHERE WhatId =:weekPlan.Id
-                        AND Status__c != 'Discarded' ORDER BY Customer__c]){
-            Map<Integer,String> temp = new Map<Integer,String>();
-            //Set<Integer> temp = new Set<Integer>();
 
-            if(mapOfOldRecords.containsKey(ev.Customer__c)){
-                temp = mapOfOldRecords.get(ev.Customer__c);
-            }
 
-            //temp.add(ev.ActivityDate.day());
-            temp.put(ev.ActivityDate.day(), ev.Id);
+        listOfWeekndsAndHoliday.add(dl);
+      }
+      Map<String,Category__c> allCodes = Category__c.getAll();
+      String cat = allCodes.containsKey(acc.Category__c) ? allCodes.get(acc.Category__c).Visit_Count__c : 'NA';
+      String pastV = (accountPastVisit.containsKey(acc.Id) ? accountPastVisit.get(acc.Id)+'/'+cat : '0/'+cat);
+      dataWrapper.add(new PJP_PlanningController.WrapperVisitPlanDays(acc,listOfWeekndsAndHoliday,pastV));
+    }
 
-            mapOfOldRecords.put(ev.Customer__c,temp);
+    returnList.cityList = cityList;
+    returnList.categoryList = categoryList;
+    returnList.dataWrapper = dataWrapper;
+
+    return returnList;
+  }
+
+  //Save Plan class
+  @RemoteAction
+  global static String savePlan(String plan, String delPlan, String pjpId,String stateOfMethod) {
+    Savepoint sp = Database.setSavepoint();
+    try{
+      List<DayList> returnList = new List<DayList>();
+      returnList = (List<DayList>)JSON.deserialize(plan,List<DayList>.class);
+
+      List<DayList> returnListToDiscard = new List<DayList>();
+      returnListToDiscard = (List<DayList>)JSON.deserialize(delPlan,List<DayList>.class);
+
+      Weekly_Journey_Plan__c weekPlan = [SELECT Id,Week__c,Monthly_Journey_Plan__r.Visit_Plan_Month__c,Monthly_Journey_Plan__r.Visit_Plan_Year__c FROM Weekly_Journey_Plan__c WHERE Id=:pjpId];
+      // Get old records
+      Map<String,Set<Integer>> mapOfOldRecords = new Map<String,Set<Integer>>();
+
+      Map<String, Integer> monNames = new Map<String,Integer>{'January' => 1,'February' => 2,'March' => 3,'April' => 4,'May' => 5,'June' => 6,'July' => 7,'August' => 8,'September' => 9,'October' => 10,'November' => 11, 'December' => 12};
+
+      for(Event ev : [SELECT Id,ActivityDate,Customer__c FROM Event WHERE WhatId =:pjpId
+      AND Status__c != 'Discarded' ORDER BY Customer__c]){
+        Set<Integer> temp = new Set<Integer>();
+        if(mapOfOldRecords.containsKey(ev.Customer__c)){
+          temp = mapOfOldRecords.get(ev.Customer__c);
         }
+        temp.add(ev.ActivityDate.day());
+        mapOfOldRecords.put(ev.Customer__c,temp);
+      }
+      List<Event> eventCal = new List<Event>();
+      List<Event> eventCalToDiscard = new List<Event>();
 
-        Date actDate = (monNames.get(weekPlan.Monthly_Journey_Plan__r.Visit_Plan_Month__c) > 3 ? Date.newInstance(Integer.valueOf(weekPlan.Monthly_Journey_Plan__r.Visit_Plan_Year__c),4,1) : Date.newInstance(Integer.valueOf(weekPlan.Monthly_Journey_Plan__r.Visit_Plan_Year__c)-1,4,1));
-        Map<String,Integer> accountPastVisit = new Map<String,Integer>();
-
-        //system.assertEquals(actDate, null);
-
-        for(AggregateResult agRest : [SELECT Count(Id),Customer__c FROM EVENT WHERE Status__c = 'Completed' AND Customer__c != NULL AND ActivityDate > :actDate Group By Customer__c]){
-            accountPastVisit.put(String.valueOf(agRest.get('Customer__c')),Integer.valueOf(agRest.get('expr0')));
-        }
-
-
-        // Set Weekend apart
-        Set<String> weekendList = new Set<String>();
-        for(String day_name : Label.NonWorkingDays.split(';')) {
-            weekendList.add(day_name);
-        }
-
-        Integer counter = 1;
-
-        Set<Integer> dayNumber = new Set<Integer>();
-
-        for(Integer day_count = 1 ; day_count <= date.daysInMonth(Integer.valueOf(weekPlan.Monthly_Journey_Plan__r.Visit_Plan_Year__c), monNames.get(weekPlan.Monthly_Journey_Plan__r.Visit_Plan_Month__c)); day_count ++){
-            DateTime dummy_date = DateTime.newInstance(Date.newInstance(Integer.valueOf(weekPlan.Monthly_Journey_Plan__r.Visit_Plan_Year__c), monNames.get(weekPlan.Monthly_Journey_Plan__r.Visit_Plan_Month__c),day_count), Time.newInstance(0, 0, 0, 0));
-
-            if(!weekendList.contains(dummy_date.format('EEE')) && counter == Integer.valueOf(weekPlan.Week__c)){
-                dayNumber.add(day_count);
-            }else if(weekendList.contains(dummy_date.format('EEE'))){
-                counter++;
-            }
-        }
+      //Integer counterOfVisits = 0;
+      Map<Integer,Integer> counterOfVisits = new Map<Integer,Integer>();
 
 
-        //Find all Subordinate Roles
-        Map<Id, UserRole> subRoles = new Map<Id, UserRole>([SELECT Id FROM UserRole WHERE ParentRoleId =: UserInfo.getUserRoleId()]);
-        //Query all users that belong to the subRoles.
-        Map<Id, User> subUsers = new Map<Id, User>([SELECT Id from User WHERE UserRoleId =: subRoles.keySet()]);
-        //Add the current user's id to the SubUsersId
-        Set<Id> usersToQuery = new Set<Id>();
-        usersToQuery.addAll(subUsers.keySet());
-        usersToQuery.add(UserInfo.getUserId());
-
-        List<Account> accountForAllUsers = new List <Account> ();
-        List<AccountShare> accountShared = new List <AccountShare> ();
-        Set<Id> accIdforDealers = new Set<Id>();
-
-        if (weeklyPlanId != null && weeklyPlanId != '') {
-
-            Weekly_Journey_Plan__c mp = [SELECT Id,Monthly_Journey_Plan__r.OwnerId FROM Weekly_Journey_Plan__c
-                                         WHERE Id = :weeklyPlanId];
-            accountShared = [SELECT AccountId, Account.OwnerId, UserOrGroupId, Account.RecordType.Name FROM AccountShare
-                             WHERE Account.RecordType.Name = 'Dealer'
-                             AND UserOrGroupId = :mp.Monthly_Journey_Plan__r.OwnerId];
-            if (accountShared != NULL && !accountShared.isEmpty()) {
-                for (AccountShare accshare :accountShared) {
-                    accIdforDealers.add(accshare.AccountId);
-                }
-            }
-
-            if (mp != NULL ) {
-                accountForAllUsers = [SELECT Id,Name,BillingCity,Category__c FROM Account
-                                      WHERE (RecordType.Name = 'Customer' AND (OwnerID = :mp.Monthly_Journey_Plan__r.OwnerId)) OR Id IN : accIdforDealers
-                                      ORDER BY Name];
-            }
+      for(DayList dList : returnList){
+        if(mapOfOldRecords.containsKey(dList.customerID)){
+          //dl.selectedDay = mapOfOldRecords.get(acc.Id).contains(day_count) ? true : false;
+          if(!mapOfOldRecords.get(dList.customerID).contains(dList.dayNumber)){
+            //counterOfVisits++;
+            eventCal.add(new Event(Customer__c = dList.customerID,Type = 'Meeting',Subject = 'Meeting with '+dList.customerName,WhatId = pjpId,ActivityDate = Date.newInstance(Integer.valueOf(weekPlan.Monthly_Journey_Plan__r.Visit_Plan_Year__c), monNames.get(weekPlan.Monthly_Journey_Plan__r.Visit_Plan_Month__c),dList.dayNumber),StartDateTime = DateTime.newInstance(date.newInstance(Integer.valueOf(weekPlan.Monthly_Journey_Plan__r.Visit_Plan_Year__c), monNames.get(weekPlan.Monthly_Journey_Plan__r.Visit_Plan_Month__c),dList.dayNumber), Time.newInstance(12, 0, 0, 0)),EndDateTime = DateTime.newInstance(date.newInstance(Integer.valueOf(weekPlan.Monthly_Journey_Plan__r.Visit_Plan_Year__c), monNames.get(weekPlan.Monthly_Journey_Plan__r.Visit_Plan_Month__c),dList.dayNumber), Time.newInstance(13, 0, 0, 0))));
+          }
         } else {
-            accountShared = [SELECT AccountId, Account.OwnerId, UserOrGroupId, Account.RecordType.Name FROM AccountShare
-                             WHERE Account.RecordType.Name = 'Dealer'
-                             AND UserOrGroupId IN :usersToQuery];
-            if (accountShared != NULL && !accountShared.isEmpty()) {
-                for (AccountShare accshare :accountShared) {
-                    accIdforDealers.add(accshare.AccountId);
-                }
-            }
-
-            accountForAllUsers = [SELECT Id,Name,BillingCity,Category__c FROM Account
-                                  WHERE (RecordType.Name = 'Customer' AND (OwnerID IN :usersToQuery)) OR Id IN : accIdforDealers
-                                  ORDER BY Name];
+          eventCal.add(new Event(Customer__c = dList.customerID,Type = 'Meeting',Subject = 'Meeting with '+dList.customerName,WhatId = pjpId,ActivityDate = Date.newInstance(Integer.valueOf(weekPlan.Monthly_Journey_Plan__r.Visit_Plan_Year__c), monNames.get(weekPlan.Monthly_Journey_Plan__r.Visit_Plan_Month__c),dList.dayNumber),StartDateTime = DateTime.newInstance(date.newInstance(Integer.valueOf(weekPlan.Monthly_Journey_Plan__r.Visit_Plan_Year__c), monNames.get(weekPlan.Monthly_Journey_Plan__r.Visit_Plan_Month__c),dList.dayNumber), Time.newInstance(12, 0, 0, 0)),EndDateTime = DateTime.newInstance(date.newInstance(Integer.valueOf(weekPlan.Monthly_Journey_Plan__r.Visit_Plan_Year__c), monNames.get(weekPlan.Monthly_Journey_Plan__r.Visit_Plan_Month__c),dList.dayNumber), Time.newInstance(13, 0, 0, 0))));
+          //counterOfVisits++;
         }
 
-        for(Account acc : accountForAllUsers) {
-            List<DayList> listOfWeekndsAndHoliday = new List<DayList>();
-            // Add cities
-            cityList.add(acc.BillingCity);
-            // Add Categories
-            categoryList.add(acc.Category__c);
-            for(Integer dayN : dayNumber){
-
-
-                DayList dl = new DayList();
-
-                dl.customerID = acc.Id;
-                dl.customerName = acc.Name;
-                dl.readOnlySt = setReadOnly;
-                dl.dayNumber = dayN;
-                dl.typeCol = 'Normal';
-                dl.holReason = Integer.valueOf(weekPlan.Week__c);
-                if(mapOfOldRecords.containsKey(acc.Id)){
-                  Map<Integer,String> temp = new Map<Integer,String>();
-                  temp = mapOfOldRecords.get(acc.Id);
-
-                    dl.selectedDay = temp.containsKey(dayN) ? true : false;
-                    dl.evetnId = temp.containsKey(dayN) ? temp.get(dayN) : null;
-
-                }else{
-                    dl.selectedDay = false;
-                    dl.evetnId = null;
-
-                }
-
-
-
-                listOfWeekndsAndHoliday.add(dl);
-            }
-            Map<String,Category__c> allCodes = Category__c.getAll();
-            String cat = allCodes.containsKey(acc.Category__c) ? allCodes.get(acc.Category__c).Visit_Count__c : 'NA';
-            String pastV = (accountPastVisit.containsKey(acc.Id) ? accountPastVisit.get(acc.Id)+'/'+cat : '0/'+cat);
-            dataWrapper.add(new PJP_PlanningController.WrapperVisitPlanDays(acc,listOfWeekndsAndHoliday,pastV));
+        Integer temp = 1;
+        if(counterOfVisits.containsKey(dList.holReason)){
+          temp = counterOfVisits.get(dList.holReason) + 1;
         }
+        counterOfVisits.put(dList.holReason,temp);
+      }
 
-        returnList.cityList = cityList;
-        returnList.categoryList = categoryList;
-        returnList.dataWrapper = dataWrapper;
+      insert eventCal;
 
-        return returnList;
+      Weekly_Journey_Plan__c wp = [SELECT Id,Total_Visits__c,Weekly_Plan_Approval_Status__c,Week__c FROM Weekly_Journey_Plan__c WHERE Id =:pjpId];
+      //wp.Total_Visits__c = wp.Total_Visits__c+counterOfVisits;
+      wp.Total_Visits__c = counterOfVisits.containsKey(Integer.valueOf(wp.Week__c)) ? counterOfVisits.get(Integer.valueOf(wp.Week__c)) : 0;
+
+
+      /*Discarding unchecked events*/
+      for(DayList dList : returnListToDiscard){
+        eventCalToDiscard.add(new Event(Id = dList.evetnId, Status__c = 'Discarded'));
+      }
+      update eventCalToDiscard;
+
+      if(stateOfMethod == 'Submit'){
+        wp.Weekly_Plan_Approval_Status__c = 'Submitted For Approval';
+        update wp;
+        // Create an approval request for the account
+        Approval.ProcessSubmitRequest req1 = new Approval.ProcessSubmitRequest();
+        req1.setComments('Submitting request for approval.');
+        req1.setObjectId(wp.id);
+        // Submit the approval request for the account
+        Approval.ProcessResult result = Approval.process(req1);
+      } else {
+        update wp;
+      }
+      return wp.Id;
+    }catch(Exception e){
+      system.debug('EXCEPTION' + e.getMessage());
+      Database.rollback(sp);
+      return null;
     }
-
-    //Save Plan class
-    @RemoteAction
-    global static String savePlan(String plan, String delPlan, String pjpId,String stateOfMethod) {
-        Savepoint sp = Database.setSavepoint();
-        try{
-            List<DayList> returnList = new List<DayList>();
-            returnList = (List<DayList>)JSON.deserialize(plan,List<DayList>.class);
-
-            List<DayList> returnListToDiscard = new List<DayList>();
-            returnListToDiscard = (List<DayList>)JSON.deserialize(delPlan,List<DayList>.class);
-
-            Weekly_Journey_Plan__c weekPlan = [SELECT Id,Week__c,Monthly_Journey_Plan__r.Visit_Plan_Month__c,Monthly_Journey_Plan__r.Visit_Plan_Year__c FROM Weekly_Journey_Plan__c WHERE Id=:pjpId];
-            // Get old records
-            Map<String,Set<Integer>> mapOfOldRecords = new Map<String,Set<Integer>>();
-
-            Map<String, Integer> monNames = new Map<String,Integer>{'January' => 1,'February' => 2,'March' => 3,'April' => 4,'May' => 5,'June' => 6,'July' => 7,'August' => 8,'September' => 9,'October' => 10,'November' => 11, 'December' => 12};
-
-                for(Event ev : [SELECT Id,ActivityDate,Customer__c FROM Event WHERE WhatId =:pjpId
-                                AND Status__c != 'Discarded' ORDER BY Customer__c]){
-                    Set<Integer> temp = new Set<Integer>();
-                    if(mapOfOldRecords.containsKey(ev.Customer__c)){
-                        temp = mapOfOldRecords.get(ev.Customer__c);
-                    }
-                    temp.add(ev.ActivityDate.day());
-                    mapOfOldRecords.put(ev.Customer__c,temp);
-                }
-            List<Event> eventCal = new List<Event>();
-            List<Event> eventCalToDiscard = new List<Event>();
-
-            //Integer counterOfVisits = 0;
-            Map<Integer,Integer> counterOfVisits = new Map<Integer,Integer>();
-
-
-            for(DayList dList : returnList){
-                if(mapOfOldRecords.containsKey(dList.customerID)){
-                    //dl.selectedDay = mapOfOldRecords.get(acc.Id).contains(day_count) ? true : false;
-                    if(!mapOfOldRecords.get(dList.customerID).contains(dList.dayNumber)){
-                        //counterOfVisits++;
-                        eventCal.add(new Event(Customer__c = dList.customerID,Type = 'Meeting',Subject = 'Meeting with '+dList.customerName,WhatId = pjpId,ActivityDate = Date.newInstance(Integer.valueOf(weekPlan.Monthly_Journey_Plan__r.Visit_Plan_Year__c), monNames.get(weekPlan.Monthly_Journey_Plan__r.Visit_Plan_Month__c),dList.dayNumber),StartDateTime = DateTime.newInstance(date.newInstance(Integer.valueOf(weekPlan.Monthly_Journey_Plan__r.Visit_Plan_Year__c), monNames.get(weekPlan.Monthly_Journey_Plan__r.Visit_Plan_Month__c),dList.dayNumber), Time.newInstance(12, 0, 0, 0)),EndDateTime = DateTime.newInstance(date.newInstance(Integer.valueOf(weekPlan.Monthly_Journey_Plan__r.Visit_Plan_Year__c), monNames.get(weekPlan.Monthly_Journey_Plan__r.Visit_Plan_Month__c),dList.dayNumber), Time.newInstance(13, 0, 0, 0))));
-                    }
-                } else {
-                    eventCal.add(new Event(Customer__c = dList.customerID,Type = 'Meeting',Subject = 'Meeting with '+dList.customerName,WhatId = pjpId,ActivityDate = Date.newInstance(Integer.valueOf(weekPlan.Monthly_Journey_Plan__r.Visit_Plan_Year__c), monNames.get(weekPlan.Monthly_Journey_Plan__r.Visit_Plan_Month__c),dList.dayNumber),StartDateTime = DateTime.newInstance(date.newInstance(Integer.valueOf(weekPlan.Monthly_Journey_Plan__r.Visit_Plan_Year__c), monNames.get(weekPlan.Monthly_Journey_Plan__r.Visit_Plan_Month__c),dList.dayNumber), Time.newInstance(12, 0, 0, 0)),EndDateTime = DateTime.newInstance(date.newInstance(Integer.valueOf(weekPlan.Monthly_Journey_Plan__r.Visit_Plan_Year__c), monNames.get(weekPlan.Monthly_Journey_Plan__r.Visit_Plan_Month__c),dList.dayNumber), Time.newInstance(13, 0, 0, 0))));
-                    //counterOfVisits++;
-                }
-
-                Integer temp = 1;
-                if(counterOfVisits.containsKey(dList.holReason)){
-                    temp = counterOfVisits.get(dList.holReason) + 1;
-                }
-                counterOfVisits.put(dList.holReason,temp);
-            }
-
-            insert eventCal;
-
-            Weekly_Journey_Plan__c wp = [SELECT Id,Total_Visits__c,Weekly_Plan_Approval_Status__c,Week__c FROM Weekly_Journey_Plan__c WHERE Id =:pjpId];
-            //wp.Total_Visits__c = wp.Total_Visits__c+counterOfVisits;
-            wp.Total_Visits__c = counterOfVisits.containsKey(Integer.valueOf(wp.Week__c)) ? counterOfVisits.get(Integer.valueOf(wp.Week__c)) : 0;
-
-
-            /*Discarding unchecked events*/
-            for(DayList dList : returnListToDiscard){
-              eventCalToDiscard.add(new Event(Id = dList.evetnId, Status__c = 'Discarded'));
-            }
-            update eventCalToDiscard;
-
-            if(stateOfMethod == 'Submit'){
-                wp.Weekly_Plan_Approval_Status__c = 'Submitted For Approval';
-                update wp;
-                // Create an approval request for the account
-                Approval.ProcessSubmitRequest req1 = new Approval.ProcessSubmitRequest();
-                req1.setComments('Submitting request for approval.');
-                req1.setObjectId(wp.id);
-                // Submit the approval request for the account
-                Approval.ProcessResult result = Approval.process(req1);
-            } else {
-                update wp;
-            }
-            return wp.Id;
-        }catch(Exception e){
-            system.debug('EXCEPTION' + e.getMessage());
-            Database.rollback(sp);
-            return null;
-        }
-    }
+  }
 }
